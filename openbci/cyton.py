@@ -202,12 +202,22 @@ class OpenBCICyton(object):
     #Initialize check connection
     self.check_connection()
 
-    time_point = 0  # time_point = 
+    time_point = 6  # time_point = 
     isRestMode = True
+    printNow = True
     while self.streaming:
       # read current sample
       sample = self._read_serial_binary()
       #print(sample)
+      if printNow:
+        if time_point == 6:
+          time_point = 0
+          isRestMode = True
+          print('---Rest---')
+        else:
+          print('***Move***')
+        printNow = False
+        
       # if a daisy module is attached, wait to concatenate two samples (main board + daisy) before passing it to callback
       if self.daisy:
         # odd sample: daisy sample, save for later
@@ -229,7 +239,6 @@ class OpenBCICyton(object):
           #print(self.rt_record, np.array(sample.channel_data + self.last_odd_sample.channel_data))
           self.rt_record = np.append(self.rt_record, np.expand_dims(np.array(sample.channel_data + self.last_odd_sample.channel_data),axis=0), axis=0)
           #print(self.rt_record.shape)
-          
           if(self.rt_record.shape[0] == 251):
             
             if isRestMode:
@@ -245,13 +254,9 @@ class OpenBCICyton(object):
             
             self.rt_record = np.expand_dims(np.zeros(16), axis=0)
             time_point += 1
-            if time_point == 6:
-              time_point = 0
-              isRestMode = True
-              print('---Rest---')
-            else:
-              print('***Move***')
-                
+            modelThread.join()
+            printNow = True
+            
       else:
         for call in callback:
           call(sample)

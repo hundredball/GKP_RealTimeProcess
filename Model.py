@@ -7,6 +7,7 @@ from scipy.signal import butter, lfilter
 from sklearn.preprocessing import scale
 from sklearn.model_selection import train_test_split
 import Lab2_Run as LR
+import time
 
 class Model(object):
 	
@@ -127,10 +128,13 @@ class Model(object):
 		print('Set ref: ', self.ref)
         
 	def runThread(self, isRestMode, data):
+#		since = time.time()
 		if isRestMode:
 			self.setReference(data)
 		else:
 			self.predict(data)
+#		print('Spend %f seconds' %(time.time()-since))
+		return True
 
 '''
 if __name__ == '__main__':
