@@ -7,6 +7,7 @@ from scipy.signal import butter, lfilter
 from sklearn.preprocessing import scale
 from sklearn.model_selection import train_test_split
 import Lab2_Run as LR
+import time
 
 class Model(object):
 	
@@ -33,6 +34,8 @@ class Model(object):
 		self.address = address
 		self.device = torch.device("cuda")
 		self.ref = None
+		self.z = None
+		self.flag_z = False
 		
 	def butter_bandpass(self, lowcut, highcut, fs, order = 5):
 		nyq = 0.5*fs
@@ -45,7 +48,13 @@ class Model(object):
 		b, a = self.butter_bandpass(lowcut, highcut, fs, order=order)
 #		print('b:', b.shape)
 #		print('a:', a.shape)
-		y = lfilter(b,a,data,axis=0)
+		if self.flag_z == False:
+			self.z = np.zeros((max(len(a), len(b))-1, 2), dtype=np.float)
+			self.flag_z = True
+		
+		#print(self.z.shape)
+		#data has 2 channels, so z also needs to be 2*?
+		y, self.z = lfilter(b,a,data,axis=0, zi = self.z)
 		return y
 	
 	def preprocessing(self, data):
@@ -54,15 +63,16 @@ class Model(object):
 		data = np.delete(data,0,0) #remove first row since it is all 0
 #		print('shape',data.shape)
 		#data is (250*5) #modify at 0424
-        
+
+		data = self.butter_bandpass_filter(data, 0.5, 30, 125, 5)
 		data -= self.ref
-		
-		data = self.butter_bandpass_filter(data, 1, 50, 125, 5)
 	
 		#for i in range(data.shape[0]):
 		#data = scale(data,axis=1) #axis=1 normalize each sample independently		
-		data = data-self.mean
-		data = data/self.std			
+		mean = np.mean(data)
+		std = np.std(data)
+		data = data-mean
+		data = data/std
 
 		#test_data = np.reshape(data,(len(data), 1, np.size(data,2), np.size(data,1)))
 #		test_data = np.reshape(data,(1, 1, np.size(data,1), np.size(data,0)))
@@ -91,8 +101,8 @@ class Model(object):
 		
 		print('ans',Y)
 #		print('socket:', self.socket)
-#		if self.so:
-#			self.socket.sendall(bytes([Y]))
+		if self.so:
+			self.socket.sendall(bytes(Y))
 		return Y
     
 	def test_preprocessing(self, data, label):
@@ -121,16 +131,21 @@ class Model(object):
 		data = np.delete(data,0,0) #remove first row since it is all 0
 #		print('shape',data.shape)
 		
+		data = self.butter_bandpass_filter(data, 0.5, 30, 125, 5)
+		
 		fs = 125
 		interval = 0.6
 		self.ref = np.mean(data[-int(fs*interval):], axis=0)
 		print('Set ref: ', self.ref)
         
 	def runThread(self, isRestMode, data):
+#		since = time.time()
 		if isRestMode:
 			self.setReference(data)
 		else:
 			self.predict(data)
+#		print('Spend %f seconds' %(time.time()-since))
+		return True
 
 '''
 if __name__ == '__main__':

@@ -127,6 +127,15 @@ class OpenBCICyton(object):
     self.rt_record = np.expand_dims(np.zeros(16), axis=0)
     
     #19/03/29 loading model first, prevent repetitively load model
+    local_ip = self._get_local_ip_address()
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    print("Opened socket on %s" % (local_ip))
+    server.bind((local_ip, 100))
+    server.listen(5)
+    server.setblocking(1)
+    self.s_socket, addr = server.accept() 
+    
+    
     m = 'EEGNet_ReLU_0420.pt'
     param = 'param_0420.txt'
     self.model = self.init_model(m, param)
@@ -202,12 +211,24 @@ class OpenBCICyton(object):
     #Initialize check connection
     self.check_connection()
 
-    time_point = 0  # time_point = 
+    time_point = 6  # time_point = 
     isRestMode = True
+    printNow = True
     while self.streaming:
       # read current sample
       sample = self._read_serial_binary()
       #print(sample)
+      if printNow:
+        if time_point == 6:
+          time_point = 0
+          isRestMode = True
+          print('---Rest---')
+          self.s_socket.sendall(bytes([99]))
+        else:
+          print('***Move***')
+          self.s_socket.sendall(bytes([100]))
+        printNow = False
+        
       # if a daisy module is attached, wait to concatenate two samples (main board + daisy) before passing it to callback
       if self.daisy:
         # odd sample: daisy sample, save for later
@@ -229,7 +250,6 @@ class OpenBCICyton(object):
           #print(self.rt_record, np.array(sample.channel_data + self.last_odd_sample.channel_data))
           self.rt_record = np.append(self.rt_record, np.expand_dims(np.array(sample.channel_data + self.last_odd_sample.channel_data),axis=0), axis=0)
           #print(self.rt_record.shape)
-          
           if(self.rt_record.shape[0] == 251):
             
             if isRestMode:
@@ -245,13 +265,9 @@ class OpenBCICyton(object):
             
             self.rt_record = np.expand_dims(np.zeros(16), axis=0)
             time_point += 1
-            if time_point == 6:
-              time_point = 0
-              isRestMode = True
-              print('---Rest---')
-            else:
-              print('***Move***')
-                
+            modelThread.join()
+            printNow = True
+            
       else:
         for call in callback:
           call(sample)
@@ -304,21 +320,21 @@ class OpenBCICyton(object):
           break
   
   def init_model(self, p, paramPath): #19/03/29
-#    print('initialize model object')
+    print('Initialize model object')
     # create server for sending signal to unity, unity acts as client
 #    unity_host, unity_port = '87.87.87.87', 8787
 #    unity_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 #    unity_sock.connect((unity_host, unity_port))
-    print("In the init_model")
-    local_ip = self._get_local_ip_address()
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    print("Opened socket on %s" % (local_ip))
-    server.bind((local_ip, 100))
-    server.listen(5)
-    server.setblocking(1)
+#    print("In the init_model")
+#    local_ip = self._get_local_ip_address()
+#    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+#    print("Opened socket on %s" % (local_ip))
+#    server.bind((local_ip, 100))
+#    server.listen(5)
+#    server.setblocking(1)
     #s_socket, addr = server.accept() 
-    s_socket = None
-    return Model.Model(path=p, paramPath = paramPath, socket=s_socket)
+#    s_socket = None
+    return Model.Model(path=p, paramPath = paramPath, socket=self.s_socket)
       
       
   # ----------------------------------------
